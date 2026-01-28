@@ -3,6 +3,8 @@ from managers.command_manager import Command_Manager
 from managers.tts_manager import TTS_Manager
 import requests, socket, ssl
 
+from managers.websocket_manager import Websocket_Manager
+
 class Twitch_Manager:
     def __init__(self):
 
@@ -18,24 +20,30 @@ class Twitch_Manager:
         self.command_manager = Command_Manager()
         self.command_manager.register_func("close", self.close, 0, True)
         self.command_manager.register_func("restart", self.restart, 0, True)
-        self.command_manager.register_func("say", self.tts_manager.speak, 0, False)
+        self.command_manager.register_func("say", self.say, 0, False)
+
+        self.websock_manager = Websocket_Manager(
+            host=self.config["WS_HOST"],
+            port=self.config["WS_PORT"],
+            password=self.config["WS_PASS"]
+        )
 
     def refresh_access_token(self):
         r = requests.post(
         "https://id.twitch.tv/oauth2/token",
         data={
             "grant_type": "refresh_token",
-            "refresh_token": self.config["REFRESH_TOKEN"],
-            "client_id": self.config["CLIENT_ID"],
-            "client_secret": self.config["CLIENT_SECRET"],
+            "refresh_token": self.config["TW_REFRESH_TOKEN"],
+            "client_id": self.config["TW_CLIENT_ID"],
+            "client_secret": self.config["TW_CLIENT_SECRET"],
             },
         timeout=10,
         )
         r.raise_for_status()
         tokens = r.json()
 
-        self.config['OAUTH'] = tokens['access_token']
-        self.config['REFRESH_TOKEN'] = tokens['refresh_token']
+        self.config['TW_OAUTH'] = tokens['access_token']
+        self.config['TW_REFRESH_TOKEN'] = tokens['refresh_token']
 
         save_information(self.config)
 
@@ -49,9 +57,9 @@ class Twitch_Manager:
         server = "irc.chat.twitch.tv"
         port = 6697
 
-        oauth = f"PASS oauth:{self.config['OAUTH']}\r\n"
-        nick =  f"NICK {self.config['NICK']}\r\n"
-        join =  f"JOIN #{self.config['JOIN']}\r\n"
+        oauth = f"PASS oauth:{self.config['TW_OAUTH']}\r\n"
+        nick =  f"NICK {self.config['TW_NICK']}\r\n"
+        join =  f"JOIN #{self.config['TW_JOIN']}\r\n"
 
         context = ssl.create_default_context()
 
@@ -73,15 +81,15 @@ class Twitch_Manager:
             return None, None
 
         prefix, msg = raw.split("PRIVMSG", 1)
-        user = prefix.split("!", 1)[0][1:]
-        user = user.split(":", 1)[1].strip()
+        user = prefix.split("display-name=", 1)[1]
+        user = user.split(";", 1)[0]
         text = msg.split(":", 1)[1].strip()
 
         return user, text
 
     def is_mod(self, user: str):
         print(user)
-        if user == "anythingsoup":
+        if user == "anythingsoup" or user == "AnythingSoup":
             return True
         return False
 
@@ -92,6 +100,13 @@ class Twitch_Manager:
     def restart(self, user: str, args: list[str]):
         self.instance_running = False
 
+    def say(self, user: str, args: list[str]):
+        if not self.tts_manager.can_speak(args=args):
+            return
+
+        self.websock_manager.on_tts_call(user=user, args=args)
+        self.tts_manager.speak(user=user, args=args)
+
     def run(self):
         while self.running:
             self._iternal_socket_handler()
@@ -101,10 +116,6 @@ class Twitch_Manager:
     def run_instance(self):
         while self.instance_running:
             data = self.sock.recv(4096).decode("utf-8", errors="ignore").strip()
-
-            if data.startswith("PING"):
-                self.sock.send(b"PONG :tmi.twitch.tv\r\n")
-                continue
 
             user, text = self.parse_message(data)
             if text:

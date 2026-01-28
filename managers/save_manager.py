@@ -16,12 +16,15 @@ def load_information():
 
 def save_information(data):
     yaml_data = {
-        "CLIENT_ID": data['CLIENT_ID'],
-        "CLIENT_SECRET": data['CLIENT_SECRET'],
-        "JOIN": data['JOIN'],
-        "NICK": data['NICK'],
-        "OAUTH": data['OAUTH'],
-        "REFRESH_TOKEN": data['REFRESH_TOKEN'],
+        "TW_CLIENT_ID": data['TW_CLIENT_ID'],
+        "TW_CLIENT_SECRET": data['TW_CLIENT_SECRET'],
+        "TW_JOIN": data['TW_JOIN'],
+        "TW_NICK": data['TW_NICK'],
+        "TW_OAUTH": data['TW_OAUTH'],
+        "TW_REFRESH_TOKEN": data['TW_REFRESH_TOKEN'],
+        "WS_HOST": data['WS_HOST'],
+        "WS_PORT": data['WS_PORT'],
+        "WS_PASS": data['WS_PASS'],
     }
 
     try:

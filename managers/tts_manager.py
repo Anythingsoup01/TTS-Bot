@@ -4,9 +4,18 @@ from pydub.playback import play
 import tempfile
 
 
+from filters.profanity_filter import IllegalWords
+
 class TTS_Manager:
     def __init__(self):
         pass
+
+    def can_speak(self, args: list[str]) -> bool:
+        if any(arg.lower() in IllegalWords for arg in args):
+            return False
+
+        return True
+
 
     def speak(self, user: str, args: list[str]):
         my_string = f"{user} says: " + " ".join(args)
@@ -20,9 +29,8 @@ class TTS_Manager:
 
             audio = AudioSegment.from_mp3(temp_filename)
             audio = audio - 10
+
             play(audio)
 
-            # Optional: remove the file after playing (this part might need refinement for timing)
-            # os.remove(temp_filename) 
         except Exception as e:
             print(f"An error occurred: {e}")
