@@ -17,8 +17,12 @@ class TTS_Manager:
         return True
 
 
-    def speak(self, user: str, args: list[str]):
-        my_string = f"{user} says: " + " ".join(args)
+    def speak(self, user: str, bits:int,  args: list[str]):
+        my_string: str = ""
+        if args:
+            my_string = f"{user} says: " + " ".join(args)
+        else:
+            my_string = f"{user} donated {bits} bits"
         try:
             # Create a temporary file
             with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:

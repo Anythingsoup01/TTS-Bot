@@ -20,7 +20,7 @@ class Twitch_Manager:
         self.command_manager = Command_Manager()
         self.command_manager.register_func("close", self.close, 0, True)
         self.command_manager.register_func("restart", self.restart, 0, True)
-        self.command_manager.register_func("say", self.say, 0, False)
+        self.command_manager.register_func("cheer", self.cheer, 0, False)
 
         self.websock_manager = Websocket_Manager(
             host=self.config["WS_HOST"],
@@ -75,6 +75,17 @@ class Twitch_Manager:
         if self.sock is not None:
             self.sock = self.sock.close()
 
+    def parse_tags(self, raw: str) -> dict[str, str]:
+        if not raw.startswith("@"):
+            return {}
+
+        tag_part = raw.split(" ", 1)[0][1:]
+        tags = {}
+        for item in tag_part.split(";"):
+            k, _, v = item.partition("=")
+            tags[k] = v
+        return tags
+
 
     def parse_message(self, raw: str):
         if "PRIVMSG" not in raw:
@@ -87,25 +98,22 @@ class Twitch_Manager:
 
         return user, text
 
-    def is_mod(self, user: str):
-        print(user)
-        if user == "anythingsoup" or user == "AnythingSoup":
-            return True
-        return False
-
-    def close(self, user: str, args: list[str]):
+    def close(self, args: list[str]):
         self.running = False
         self.instance_running = False
 
-    def restart(self, user: str, args: list[str]):
+    def restart(self, args: list[str]):
         self.instance_running = False
 
-    def say(self, user: str, args: list[str]):
+    def cheer(self, user: str, bits: int, args: list[str]):
         if not self.tts_manager.can_speak(args=args):
             return
 
-        self.websock_manager.on_tts_call(user=user, args=args)
-        self.tts_manager.speak(user=user, args=args)
+        if bits < 10:
+            return
+
+        self.websock_manager.on_tts_call(user=user, bits=bits, args=args)
+        self.tts_manager.speak(user=user, bits=bits, args=args)
 
     def run(self):
         while self.running:
@@ -117,6 +125,14 @@ class Twitch_Manager:
         while self.instance_running:
             data = self.sock.recv(4096).decode("utf-8", errors="ignore").strip()
 
-            user, text = self.parse_message(data)
-            if text:
-                self.command_manager.handle(user, text, self.is_mod(user))
+            tags = self.parse_tags(data);
+            if "bits" in tags:
+                bits = int(tags["bits"])
+                if bits <= 10:
+                    user, message = self.parse_message(data)
+                    newmessage: str = f"cheer{bits} message"
+                    self.command_manager.handle(user, newmessage)
+            else:
+                user, message = self.parse_message(data)
+                if message:
+                    self.command_manager.handle(user, message)
